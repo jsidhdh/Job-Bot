@@ -1,12 +1,13 @@
-name: Jobs_Bot_Runner
+name: LinkedIn Auto Apply Bot
 
 on:
   schedule:
-    - cron: '0 6 * * *' # هذا يخلي البوت يشتغل الساعة 9 صباحاً بتوقيت السعودية
-  workflow_dispatch: # هذا يضيف لك زر "تشغيل يدوياً" عشان تجربه أي وقت
+    # يشتغل كل 4 ساعات تلقائياً (6 مرات في اليوم)
+    - cron: '0 */4 * * *'
+  workflow_dispatch: # يخليك تشغله يدوي بأي وقت
 
 jobs:
-  run_bot:
+  build:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -15,12 +16,15 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v2
         with:
-          python-version: '3.9'
+          python_version: '3.9'
 
       - name: Install dependencies
         run: |
-          pip install playwright selenium webdriver-manager
+          pip install playwright requests
           playwright install chromium
 
-      - name: Run the bot script
+      - name: Run Bot
+        env:
+          USER_EMAIL: ${{ secrets.USER_EMAIL }}
+          USER_PASSWORD: ${{ secrets.USER_PASSWORD }}
         run: python bot.py
