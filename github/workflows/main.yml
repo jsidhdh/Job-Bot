@@ -1,0 +1,26 @@
+name: Jobs_Bot_Runner
+
+on:
+  schedule:
+    - cron: '0 6 * * *' # هذا يخلي البوت يشتغل الساعة 9 صباحاً بتوقيت السعودية
+  workflow_dispatch: # هذا يضيف لك زر "تشغيل يدوياً" عشان تجربه أي وقت
+
+jobs:
+  run_bot:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+
+      - name: Set up Python
+        uses: actions/setup-python@v2
+        with:
+          python-version: '3.9'
+
+      - name: Install dependencies
+        run: |
+          pip install playwright selenium webdriver-manager
+          playwright install chromium
+
+      - name: Run the bot script
+        run: python bot.py
