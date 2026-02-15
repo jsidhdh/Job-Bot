@@ -13,7 +13,6 @@ from playwright.async_api import async_playwright
 EMAIL_USER = "oedn305@gmail.com"
 EMAIL_PASS = os.getenv("EMAIL_PASSWORD") 
 DATABASE_FILE = "applied_emails.txt"
-BLACKLIST_FILE = "blacklist.txt"
 
 def get_cv_path():
     for file in os.listdir('.'):
@@ -24,28 +23,23 @@ def get_cv_path():
 CV_PATH = get_cv_path()
 
 def is_valid_email(email):
-    """فلترة الإيميلات الوهمية والأرقام المكررة قبل الإرسال"""
     email = email.lower().strip()
-    # استبعاد الإيميلات التي تبدأ بـ 22 أو أرقام مشبوهة أو خدمات تقنية
-    bad_prefixes = ['22@', '123@', 'test@', 'noreply@', 'support@']
-    bad_domains = ['google', 'facebook', 'sentry', 'w3.org', 'example', 'instagram', 'twitter']
-    
-    if any(email.startswith(p) for p in bad_prefixes): return False
+    # استبعاد الإيميلات الوهمية التي تبدأ بـ 22 أو أرقام مشبوهة
+    if re.match(r"^(22|123|test|abc)@", email): return False
+    # استبعاد الدومينات التقنية
+    bad_domains = ['google', 'facebook', 'sentry', 'w3.org', 'example', 'instagram', 'twitter', 'github']
     if any(d in email for d in bad_domains): return False
-    if not re.match(r"[^@]+@[^@]+\.[^@]+", email): return False
     return True
 
 async def send_email_with_cv(target_email):
-    # تنظيف الإيميل من أي رموز مخفية نهائياً
     clean_email = "".join(c for c in target_email if ord(c) < 128).strip()
-    
     try:
         msg = MIMEMultipart()
         msg['From'] = EMAIL_USER
         msg['To'] = clean_email
-        msg['Subject'] = f"Request for Job - High School Graduate - {random.randint(1000, 9999)}"
+        msg['Subject'] = f"Request for Job - High School Graduate - {random.randint(100, 999)}"
         
-        body = "السلام عليكم ورحمة الله وبركاته،\n\nأرفق لكم سيرتي الذاتية لطلب الانضمام لفريقكم العمل (مؤهل ثانوي). أتطلع لسماع ردكم.\n\nمع الشكر والتقدير."
+        body = "السلام عليكم، أرفق لكم سيرتي الذاتية للتقديم على الوظائف المتاحة بمؤهل ثانوي. شكراً لكم."
         msg.attach(MIMEText(body, 'plain', 'utf-8'))
 
         if CV_PATH:
@@ -53,7 +47,7 @@ async def send_email_with_cv(target_email):
                 part = MIMEBase('application', 'octet-stream')
                 part.set_payload(f.read())
                 encoders.encode_base64(part)
-                part.add_header('Content-Disposition', 'attachment; filename="Resume.pdf"') 
+                part.add_header('Content-Disposition', 'attachment; filename="CV.pdf"') 
                 msg.attach(part)
 
         server = smtplib.SMTP('smtp.gmail.com', 587)
@@ -63,28 +57,26 @@ async def send_email_with_cv(target_email):
         server.quit()
         return True
     except Exception as e:
-        with open(BLACKLIST_FILE, "a") as f:
-            f.write(target_email + "\n")
-        print(f"⚠️ فشل وتم الحظر: {target_email} | الخطأ: {e}")
+        print(f"⚠️ فشل الإرسال إلى {target_email}: {e}")
         return False
 
 async def get_fresh_emails(page):
-    # كلمات بحث تستهدف إيميلات التوظيف (HR) الحقيقية
+    # كلمات بحث "انفجارية" لضمان عدم ظهور الرقم 0
     queries = [
-        'site:sa.opensooq.com "أرسل السيرة" "ثانوي"',
-        'site:mourjan.com "توظيف" "ثانوي" "gmail"',
-        '"hr@" وظائف ثانوي السعودية 2026',
-        '"jobs@" شركة ثانوي الدمام 2026',
-        '"careers@" وظيفة ثانوي الرياض 2026',
-        'site:linkedin.com/posts "ثانوي" "إيميل" "السعودية"'
+        '"@gmail.com" وظائف ثانوي السعودية',
+        '"@outlook.com" ثانوي توظيف الدمام الرياض',
+        'site:sa.opensooq.com "أرسل السيرة"',
+        'site:mourjan.com "ثانوي" "إيميل"',
+        '"hr@" وظيفة ثانوي 2026',
+        'site:tanqeeb.com "ثانوي" "gmail"'
     ]
     found_emails = set()
     for query in queries:
         try:
-            print(f"🔎 قنص أهداف ذكية: {query[:40]}...")
-            # جلب نتائج الشهر الأخير فقط لضمان وظائف حقيقية tbs=qdr:m
-            await page.goto(f'https://www.google.com/search?q={query}&num=50&tbs=qdr:m')
-            await asyncio.sleep(random.randint(5, 7))
+            print(f"🔎 قنص من: {query}")
+            # حذفنا &tbs=qdr:m مؤقتاً لزيادة النتائج
+            await page.goto(f'https://www.google.com/search?q={query}&num=100')
+            await asyncio.sleep(5)
             content = await page.content()
             emails = re.findall(r'[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+', content)
             for e in emails:
@@ -95,33 +87,34 @@ async def get_fresh_emails(page):
 
 async def run_bot():
     async with async_playwright() as p:
-        print(f"📁 السيفي المعتمد: {CV_PATH}")
-        print("🚀 انطلاق نسخة القنص الذكي - 2026")
-        
+        print(f"📁 السيفي: {CV_PATH}")
         browser = await p.chromium.launch(headless=True)
         page = await browser.new_page()
+        
+        # 1. البحث عن إيميلات
         discovered_emails = await get_fresh_emails(page)
         
-        ignore_list = set()
-        for f_name in [DATABASE_FILE, BLACKLIST_FILE]:
-            if os.path.exists(f_name):
-                with open(f_name, "r") as f:
-                    ignore_list.update(f.read().splitlines())
+        # 2. قراءة الملفات القديمة
+        applied_list = set()
+        if os.path.exists(DATABASE_FILE):
+            with open(DATABASE_FILE, "r") as f:
+                applied_list = set(f.read().splitlines())
 
-        to_apply = [e for e in discovered_emails if e not in ignore_list]
-        print(f"🎯 المستهدف اليوم بعد التنظيف: {len(to_apply)} جهة حقيقية.")
+        # 3. الفلترة
+        to_apply = [e for e in discovered_emails if e not in applied_list]
+        print(f"🎯 المستهدف اليوم: {len(to_apply)} جهة.")
 
         success_count = 0
         for email in to_apply:
             if await send_email_with_cv(email):
-                print(f"✅ تم التقديم بنجاح: {email}")
+                print(f"✅ تم الإرسال: {email}")
                 with open(DATABASE_FILE, "a") as f:
                     f.write(email + "\n")
                 success_count += 1
-                await asyncio.sleep(random.randint(20, 40))
+                await asyncio.sleep(random.randint(10, 20))
 
         await browser.close()
-        print(f"🏁 تم إرسال {success_count} سيرة ذاتية بنجاح.")
+        print(f"🏁 التقرير: تم إرسال {success_count} سيرة ذاتية.")
 
 if __name__ == "__main__":
     asyncio.run(run_bot())
