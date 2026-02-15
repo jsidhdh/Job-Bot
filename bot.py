@@ -28,11 +28,9 @@ async def send_email_with_cv(target_email):
         msg = MIMEMultipart()
         msg['From'] = EMAIL_USER
         msg['To'] = clean_email
-        msg['Subject'] = f"طلب توظيف - ثانوية عامة - {random.randint(100, 999)}"
-        
+        msg['Subject'] = f"طلب توظيف - مؤهل ثانوي - {random.randint(100, 999)}"
         body = "السلام عليكم، أرفق لكم سيرتي الذاتية للتقديم على الوظائف المتاحة. شكراً لكم."
         msg.attach(MIMEText(body, 'plain', 'utf-8'))
-
         if CV_PATH:
             with open(CV_PATH, "rb") as f:
                 part = MIMEBase('application', 'octet-stream')
@@ -40,56 +38,61 @@ async def send_email_with_cv(target_email):
                 encoders.encode_base64(part)
                 part.add_header('Content-Disposition', 'attachment; filename="CV.pdf"') 
                 msg.attach(part)
-
         server = smtplib.SMTP('smtp.gmail.com', 587)
         server.starttls()
         server.login(EMAIL_USER, EMAIL_PASS)
         server.send_message(msg)
         server.quit()
         return True
-    except Exception as e:
-        return False
+    except: return False
 
 async def get_fresh_emails(page):
-    # كلمات بحث لمناطق جديدة لضمان نتائج غير مكررة
+    # كلمات بحث متنوعة جداً لكسر الرتابة
     queries = [
-        '"@gmail.com" وظائف ثانوي جدة مكة 2026',
-        '"@outlook.com" ثانوي توظيف الرياض القصيم',
-        '"@hotmail.com" وظائف ثانوي أبها جازان تبوك',
-        'site:sa.opensooq.com "السيرة الذاتية" "ثانوي"',
-        'site:mourjan.com "مطلوب موظفين" "ثانوي"',
-        '"hr@" شركة توظيف ثانوي 2026'
+        '"@gmail.com" وظائف ثانوي 2026',
+        'site:sa.opensooq.com "واتساب" "ثانوي"',
+        '"hr@" توظيف ثانوي السعودية',
+        'site:mourjan.com "ثانوي" "الرياض"',
+        'site:tanqeeb.com "الدمام" "ثانوي"'
     ]
     found_emails = set()
     for query in queries:
         try:
-            print(f"🔎 قنص من: {query}")
-            await page.goto(f'https://www.google.com/search?q={query}&num=100')
-            await asyncio.sleep(5)
+            # التمويه: الدخول على جوجل أولاً ثم البحث
+            await page.goto('https://www.google.com')
+            await asyncio.sleep(2)
+            search_url = f'https://www.google.com/search?q={query}&num=50'
+            await page.goto(search_url)
+            await asyncio.sleep(random.randint(5, 10))
             content = await page.content()
             emails = re.findall(r'[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+', content)
             for e in emails:
-                # فلترة الإيميلات الوهمية والمكررة
-                e_clean = e.lower().strip()
-                if not e_clean.startswith('22@') and not any(x in e_clean for x in ['google', 'facebook', 'w3.org']):
-                    found_emails.add(e_clean)
+                e_c = e.lower().strip()
+                if not e_c.startswith('22@') and not any(x in e_c for x in ['google', 'sentry', 'w3.org']):
+                    found_emails.add(e_c)
         except: continue
     return list(found_emails)
 
 async def run_bot():
     async with async_playwright() as p:
-        print(f"📁 الملف المستخدم: {CV_PATH}")
+        print(f"📁 السيفي: {CV_PATH}")
+        # استخدام User-Agent حقيقي للتمويه
         browser = await p.chromium.launch(headless=True)
-        page = await browser.new_page()
+        context = await browser.new_context(
+            user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+        )
+        page = await context.new_page()
+        
         discovered_emails = await get_fresh_emails(page)
         
+        # تصفير الذاكرة برمجياً (للتجربة الحالية)
         applied_list = set()
         if os.path.exists(DATABASE_FILE):
             with open(DATABASE_FILE, "r") as f:
                 applied_list = set(f.read().splitlines())
 
         to_apply = [e for e in discovered_emails if e not in applied_list]
-        print(f"🎯 المستهدف اليوم: {len(to_apply)} جهة توظيف جديدة.")
+        print(f"🎯 المستهدف اليوم: {len(to_apply)} جهة.")
 
         success_count = 0
         for email in to_apply:
@@ -98,10 +101,10 @@ async def run_bot():
                 with open(DATABASE_FILE, "a") as f:
                     f.write(email + "\n")
                 success_count += 1
-                await asyncio.sleep(random.randint(10, 20))
+                await asyncio.sleep(random.randint(20, 40))
 
         await browser.close()
-        print(f"🏁 التقرير: تم إرسال {success_count} سيرة ذاتية.")
+        print(f"🏁 تم إرسال {success_count} سيرة ذاتية.")
 
 if __name__ == "__main__":
     asyncio.run(run_bot())
