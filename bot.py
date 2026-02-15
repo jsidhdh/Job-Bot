@@ -22,24 +22,15 @@ def get_cv_path():
 
 CV_PATH = get_cv_path()
 
-def is_valid_email(email):
-    email = email.lower().strip()
-    # استبعاد الإيميلات الوهمية التي تبدأ بـ 22 أو أرقام مشبوهة
-    if re.match(r"^(22|123|test|abc)@", email): return False
-    # استبعاد الدومينات التقنية
-    bad_domains = ['google', 'facebook', 'sentry', 'w3.org', 'example', 'instagram', 'twitter', 'github']
-    if any(d in email for d in bad_domains): return False
-    return True
-
 async def send_email_with_cv(target_email):
     clean_email = "".join(c for c in target_email if ord(c) < 128).strip()
     try:
         msg = MIMEMultipart()
         msg['From'] = EMAIL_USER
         msg['To'] = clean_email
-        msg['Subject'] = f"Request for Job - High School Graduate - {random.randint(100, 999)}"
+        msg['Subject'] = f"طلب توظيف - ثانوية عامة - {random.randint(100, 999)}"
         
-        body = "السلام عليكم، أرفق لكم سيرتي الذاتية للتقديم على الوظائف المتاحة بمؤهل ثانوي. شكراً لكم."
+        body = "السلام عليكم، أرفق لكم سيرتي الذاتية للتقديم على الوظائف المتاحة. شكراً لكم."
         msg.attach(MIMEText(body, 'plain', 'utf-8'))
 
         if CV_PATH:
@@ -57,52 +48,48 @@ async def send_email_with_cv(target_email):
         server.quit()
         return True
     except Exception as e:
-        print(f"⚠️ فشل الإرسال إلى {target_email}: {e}")
         return False
 
 async def get_fresh_emails(page):
-    # كلمات بحث "انفجارية" لضمان عدم ظهور الرقم 0
+    # كلمات بحث لمناطق جديدة لضمان نتائج غير مكررة
     queries = [
-        '"@gmail.com" وظائف ثانوي السعودية',
-        '"@outlook.com" ثانوي توظيف الدمام الرياض',
-        'site:sa.opensooq.com "أرسل السيرة"',
-        'site:mourjan.com "ثانوي" "إيميل"',
-        '"hr@" وظيفة ثانوي 2026',
-        'site:tanqeeb.com "ثانوي" "gmail"'
+        '"@gmail.com" وظائف ثانوي جدة مكة 2026',
+        '"@outlook.com" ثانوي توظيف الرياض القصيم',
+        '"@hotmail.com" وظائف ثانوي أبها جازان تبوك',
+        'site:sa.opensooq.com "السيرة الذاتية" "ثانوي"',
+        'site:mourjan.com "مطلوب موظفين" "ثانوي"',
+        '"hr@" شركة توظيف ثانوي 2026'
     ]
     found_emails = set()
     for query in queries:
         try:
             print(f"🔎 قنص من: {query}")
-            # حذفنا &tbs=qdr:m مؤقتاً لزيادة النتائج
             await page.goto(f'https://www.google.com/search?q={query}&num=100')
             await asyncio.sleep(5)
             content = await page.content()
             emails = re.findall(r'[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+', content)
             for e in emails:
-                if is_valid_email(e):
-                    found_emails.add(e.lower().strip())
+                # فلترة الإيميلات الوهمية والمكررة
+                e_clean = e.lower().strip()
+                if not e_clean.startswith('22@') and not any(x in e_clean for x in ['google', 'facebook', 'w3.org']):
+                    found_emails.add(e_clean)
         except: continue
     return list(found_emails)
 
 async def run_bot():
     async with async_playwright() as p:
-        print(f"📁 السيفي: {CV_PATH}")
+        print(f"📁 الملف المستخدم: {CV_PATH}")
         browser = await p.chromium.launch(headless=True)
         page = await browser.new_page()
-        
-        # 1. البحث عن إيميلات
         discovered_emails = await get_fresh_emails(page)
         
-        # 2. قراءة الملفات القديمة
         applied_list = set()
         if os.path.exists(DATABASE_FILE):
             with open(DATABASE_FILE, "r") as f:
                 applied_list = set(f.read().splitlines())
 
-        # 3. الفلترة
         to_apply = [e for e in discovered_emails if e not in applied_list]
-        print(f"🎯 المستهدف اليوم: {len(to_apply)} جهة.")
+        print(f"🎯 المستهدف اليوم: {len(to_apply)} جهة توظيف جديدة.")
 
         success_count = 0
         for email in to_apply:
