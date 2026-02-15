@@ -23,7 +23,6 @@ def get_cv_path():
 CV_PATH = get_cv_path()
 
 async def send_email_with_cv(target_email):
-    # تنظيف الإيميل
     clean_email = "".join(c for c in target_email if ord(c) < 128).strip()
     try:
         msg = MIMEMultipart()
@@ -48,49 +47,52 @@ async def send_email_with_cv(target_email):
     except: return False
 
 async def get_fresh_emails(page):
-    # استخدام كلمات بحث "عالمية" لضمان جلب داتا جديدة
+    # محركات بحث مختلفة لضمان تدفق البيانات
+    search_engines = [
+        'https://duckduckgo.com/?q=',
+        'https://www.bing.com/search?q=',
+        'https://www.google.com/search?q='
+    ]
     queries = [
-        'site:sa.opensooq.com "gmail.com"',
-        'site:mourjan.com "ثانوي"',
-        'site:twitter.com "hr@" "saudi"',
-        '"cv" "jobs" "saudi" "@gmail.com"',
-        '"recruitment" "saudi" "@outlook.com"',
-        'وظائف "ثانوية" "إيميل"'
+        '"@gmail.com" وظائف ثانوي السعودية',
+        '"hr@" "careers" saudi job',
+        'site:sa.opensooq.com "إيميل"',
+        'site:mourjan.com "ثانوي" "gmail"'
     ]
     found_emails = set()
-    for query in queries:
-        try:
-            # البحث عبر DuckDuckGo (لأنه لا يحظر البوتات مثل جوجل)
-            print(f"🔎 قنص من منصة بديلة: {query}")
-            await page.goto(f'https://duckduckgo.com/?q={query}')
-            await asyncio.sleep(5)
-            content = await page.content()
-            emails = re.findall(r'[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+', content)
-            for e in emails:
-                e_c = e.lower().strip()
-                if not e_c.startswith('22@') and not any(x in e_c for x in ['google', 'sentry', 'w3.org']):
-                    found_emails.add(e_c)
-        except: continue
+    for engine in search_engines:
+        for query in queries:
+            try:
+                print(f"🔎 قنص من: {engine[:25]} لـ {query[:20]}")
+                await page.goto(f'{engine}{query}')
+                await asyncio.sleep(4)
+                content = await page.content()
+                emails = re.findall(r'[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+', content)
+                for e in emails:
+                    e_c = e.lower().strip()
+                    # استبعاد الإيميلات الوهمية والتقنية المعروفة
+                    if not e_c.startswith('22@') and not any(x in e_c for x in ['google', 'sentry', 'w3.org', 'microsoft']):
+                        found_emails.add(e_c)
+            except: continue
     return list(found_emails)
 
 async def run_bot():
     async with async_playwright() as p:
-        print(f"📁 السيفي المكتشف: {CV_PATH}")
+        print(f"📁 السيفي: {CV_PATH}")
         browser = await p.chromium.launch(headless=True)
-        # تمويه المتصفح
-        context = await browser.new_context(user_agent="Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36")
+        context = await browser.new_context(user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
         page = await context.new_page()
         
         discovered_emails = await get_fresh_emails(page)
         
-        # تحميل القائمة الحالية (تأكد انك صفرتها في GitHub)
+        # تحميل القائمة الحالية (تأكد من مسح applied_emails.txt في GitHub)
         applied_list = set()
         if os.path.exists(DATABASE_FILE):
             with open(DATABASE_FILE, "r") as f:
                 applied_list = set(f.read().splitlines())
 
         to_apply = [e for e in discovered_emails if e not in applied_list]
-        print(f"🎯 المستهدف اليوم: {len(to_apply)} جهة توظيف.")
+        print(f"🎯 المستهدف الكلي: {len(to_apply)} جهة توظيف.")
 
         success_count = 0
         for email in to_apply:
@@ -102,7 +104,7 @@ async def run_bot():
                 await asyncio.sleep(random.randint(5, 10))
 
         await browser.close()
-        print(f"🏁 التقرير النهائي: تم إرسال {success_count} سيرة ذاتية.")
+        print(f"🏁 التقرير النهائي: تم إرسال {success_count} سيرة ذاتية بنجاح.")
 
 if __name__ == "__main__":
     asyncio.run(run_bot())
