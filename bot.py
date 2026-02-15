@@ -10,7 +10,6 @@ from email import encoders
 
 # --- الإعدادات ---
 EMAIL_USER = "oedn305@gmail.com"
-# تأكد أنك وضعت "App Password" المكون من 16 حرفاً في GitHub Secrets
 EMAIL_PASS = os.getenv("EMAIL_PASSWORD") 
 DATABASE_FILE = "applied_emails.txt"
 
@@ -41,20 +40,17 @@ async def send_email_with_cv(target_email):
                 part.add_header('Content-Disposition', f'attachment; filename="CV.pdf"') 
                 msg.attach(part)
 
-        # محاولة الاتصال بخادم Gmail
         server = smtplib.SMTP('smtp.gmail.com', 587)
-        server.set_debuglevel(0) # اجعلها 1 إذا أردت رؤية تفاصيل الاتصال في الـ Logs
         server.starttls()
         server.login(EMAIL_USER, EMAIL_PASS)
         server.send_message(msg)
         server.quit()
         return True
     except Exception as e:
-        print(f"❌ خطأ أثناء الإرسال لـ {target_email}: {e}")
+        print(f"❌ خطأ في الإرسال لـ {target_email}: {e}")
         return False
 
 def generate_smart_emails():
-    # القائمة التي نجحت في جلب 89 هدفاً
     domains = ['gmail.com', 'outlook.com', 'hotmail.com', 'yahoo.com', 'moe.gov.sa', 'aramco.com', 'stc.com.sa', 'saudia.com', 'sabic.com', 'almarai.com', 'panda.com.sa', 'jarir.com']
     prefixes = ['hr', 'jobs', 'careers', 'recruitment', 'cv', 'employment']
     generated = [f"{p}@{d}" for d in domains for p in prefixes]
@@ -64,7 +60,7 @@ def generate_smart_emails():
 async def run_bot():
     print(f"📁 السيفي المكتشف: {CV_PATH}")
     if not CV_PATH:
-        print("⚠️ خطأ: لم يتم العثور على ملف PDF!")
+        print("⚠️ تنبيه: لم يتم العثور على ملف PDF في المجلد!")
         return
 
     target_emails = generate_smart_emails()
@@ -84,10 +80,10 @@ async def run_bot():
             with open(DATABASE_FILE, "a") as f:
                 f.write(email + "\n")
             success_count += 1
-            await asyncio.sleep(10) # تأخير بسيط
-            if success_count >= 10: break # إرسال 10 في كل دفعة
+            await asyncio.sleep(12) 
+            if success_count >= 10: break 
 
     print(f"🏁 التقرير النهائي: تم إرسال {success_count} سيرة ذاتية بنجاح.")
 
 if __name__ == "__main__":
-    asyncio.run(run_bot())ص
+    asyncio.run(run_bot())
