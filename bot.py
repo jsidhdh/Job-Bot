@@ -9,35 +9,40 @@ from email.mime.base import MIMEBase
 from email import encoders
 from playwright.async_api import async_playwright
 
-# --- الإعدادات ---
+# --- الإعدادات الأساسية ---
 EMAIL_USER = "oedn305@gmail.com"
 EMAIL_PASS = os.getenv("EMAIL_PASSWORD") 
 DATABASE_FILE = "applied_emails.txt"
 
 def get_cv_path():
+    """يبحث عن أي ملف PDF في المجلد ويرسله"""
     for file in os.listdir('.'):
-        if file.lower().startswith('my') and file.lower().endswith('.pdf'):
+        if file.lower().endswith('.pdf'):
             return file
     return None
 
 CV_PATH = get_cv_path()
 
+def clean_text(text):
+    """دالة لتنظيف الإيميلات والنصوص من أي رموز غير مرئية تسبب أخطاء"""
+    return "".join(i for i in text if ord(i) < 128).strip()
+
 async def send_email_with_cv(target_email):
     if not CV_PATH:
-        print("⚠️ ملف السيفي غير موجود!")
+        print("⚠️ خطأ: لا يوجد ملف PDF!")
         return False
     
     try:
-        # تنظيف الإيميل من أي رموز مخفية قد تسبب خطأ ASCII
-        clean_email = target_email.encode('ascii', 'ignore').decode('ascii').strip()
+        # تنظيف الإيميل تماماً من أي رموز ASCII غريبة
+        target_email = clean_text(target_email)
         
         msg = MIMEMultipart()
         msg['From'] = EMAIL_USER
-        msg['To'] = clean_email
-        msg['Subject'] = f"طلب توظيف (ثانوية عامة) - تحديث {random.randint(1000, 9999)}"
+        msg['To'] = target_email
+        msg['Subject'] = f"طلب توظيف (ثانوية عامة) - {random.randint(1000, 9999)}"
         
         body = "السلام عليكم، أرفق لكم سيرتي الذاتية للتقديم على الوظائف المتاحة. شكراً لكم."
-        # استخدام UTF-8 صراحة لحل مشكلة الترميز
+        # استخدام UTF-8 صراحة
         msg.attach(MIMEText(body, 'plain', 'utf-8'))
 
         with open(CV_PATH, "rb") as f:
@@ -58,42 +63,46 @@ async def send_email_with_cv(target_email):
         return False
 
 async def get_fresh_emails(page):
-    # توسيع نطاق البحث ليشمل نتائج أكثر لعام 2026
+    """يبحث في قوقل ويجلب إيميلات الشركات المباشرة"""
     queries = [
         'site:sa.opensooq.com "إيميل" "ثانوي"',
         '"@gmail.com" وظائف ثانوي الدمام الخبر 2026',
-        'site:twitter.com "ثانوي" "توظيف" "إيميل"',
-        'site:mourjan.com "ثانوي" "إيميل"'
+        'site:mourjan.com "توظيف" "ثانوي" "إيميل"',
+        'site:twitter.com "ثانوي" "إيميل" السعودية'
     ]
     found_emails = set()
     for query in queries:
         try:
-            # طلب 50 نتيجة لزيادة عدد الإيميلات
-            await page.goto(f'https://www.google.com/search?q={query}&num=50')
-            await asyncio.sleep(6)
+            # طلب عدد نتائج أكبر لزيادة الفرص
+            await page.goto(f'https://www.google.com/search?q={query}&num=40')
+            await asyncio.sleep(random.randint(5, 8))
             content = await page.content()
             # استخراج الإيميلات
             emails = re.findall(r'[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+', content)
             for e in emails:
                 e_clean = e.lower().strip()
-                if not any(x in e_clean for x in ['google', 'w3.org', 'schema', 'facebook', 'sentry']):
+                # تجنب الإيميلات التقنية غير المفيدة
+                if not any(x in e_clean for x in ['google', 'w3.org', 'schema', 'sentry', 'facebook', 'twitter']):
                     found_emails.add(e_clean)
         except: continue
     return list(found_emails)
 
 async def run_bot():
     if not CV_PATH:
-        print("❌ توقف: لم يتم العثور على ملف السيفي.")
+        print("❌ توقف: لم يتم العثور على أي ملف PDF في المستودع.")
         return
 
     async with async_playwright() as p:
-        print(f"📁 الملف المستخدم: {CV_PATH}")
-        print("🚀 انطلاق البوت اللانهائي - نسخة 2026 المحدثة")
+        print(f"📁 الملف المستخدم حالياً: {CV_PATH}")
+        print("🚀 انطلاق البوت المطور - إصلاح شامل للأخطاء 2026")
+        
         browser = await p.chromium.launch(headless=True)
-        page = await browser.new_page()
+        context = await browser.new_context(user_agent="Mozilla/5.0")
+        page = await context.new_page()
 
         discovered_emails = await get_fresh_emails(page)
         
+        # تحميل سجل الإرسال السابق
         if os.path.exists(DATABASE_FILE):
             with open(DATABASE_FILE, "r") as f:
                 applied_list = set(f.read().splitlines())
@@ -105,12 +114,16 @@ async def run_bot():
 
         success_count = 0
         for email in to_apply:
+            # محاولة الإرسال مع تنظيف الإيميل
             if await send_email_with_cv(email):
-                print(f"✅ تم التقديم بنجاح على: {email}")
+                print(f"✅ تم الإرسال بنجاح إلى: {email}")
                 with open(DATABASE_FILE, "a") as f:
                     f.write(email + "\n")
                 success_count += 1
+                # تأخير عشوائي لحماية الإيميل من الحظر
                 await asyncio.sleep(random.randint(15, 30))
+            else:
+                continue # لو فشل واحد يكمل الباقي
 
         await browser.close()
         print(f"🏁 انتهت المهمة. تم إرسال {success_count} سيرة ذاتية بنجاح!")
