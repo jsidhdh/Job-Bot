@@ -23,18 +23,29 @@ def get_cv_path():
 
 CV_PATH = get_cv_path()
 
-async def send_email_with_cv(target_email):
-    # تنظيف قسري للإيميل من أي رموز ASCII معطوبة
-    clean_email = "".join(c for c in target_email if ord(c) < 128).strip()
-    if not clean_email or '@' not in clean_email: return False
+def is_valid_email(email):
+    """فلترة الإيميلات الوهمية والأرقام المكررة قبل الإرسال"""
+    email = email.lower().strip()
+    # استبعاد الإيميلات التي تبدأ بـ 22 أو أرقام مشبوهة أو خدمات تقنية
+    bad_prefixes = ['22@', '123@', 'test@', 'noreply@', 'support@']
+    bad_domains = ['google', 'facebook', 'sentry', 'w3.org', 'example', 'instagram', 'twitter']
+    
+    if any(email.startswith(p) for p in bad_prefixes): return False
+    if any(d in email for d in bad_domains): return False
+    if not re.match(r"[^@]+@[^@]+\.[^@]+", email): return False
+    return True
 
+async def send_email_with_cv(target_email):
+    # تنظيف الإيميل من أي رموز مخفية نهائياً
+    clean_email = "".join(c for c in target_email if ord(c) < 128).strip()
+    
     try:
         msg = MIMEMultipart()
         msg['From'] = EMAIL_USER
         msg['To'] = clean_email
-        msg['Subject'] = f"Request for Job Opportunity - High School Graduate - {random.randint(1000, 9999)}"
+        msg['Subject'] = f"Request for Job - High School Graduate - {random.randint(1000, 9999)}"
         
-        body = "السلام عليكم ورحمة الله وبركاته،\n\nأرفق لكم سيرتي الذاتية للتقديم على الوظائف المتاحة (مؤهل ثانوي). أتمنى لي ولكم التوفيق.\n\nشكراً لكم."
+        body = "السلام عليكم ورحمة الله وبركاته،\n\nأرفق لكم سيرتي الذاتية لطلب الانضمام لفريقكم العمل (مؤهل ثانوي). أتطلع لسماع ردكم.\n\nمع الشكر والتقدير."
         msg.attach(MIMEText(body, 'plain', 'utf-8'))
 
         if CV_PATH:
@@ -42,7 +53,7 @@ async def send_email_with_cv(target_email):
                 part = MIMEBase('application', 'octet-stream')
                 part.set_payload(f.read())
                 encoders.encode_base64(part)
-                part.add_header('Content-Disposition', 'attachment; filename="CV_Professional.pdf"') 
+                part.add_header('Content-Disposition', 'attachment; filename="Resume.pdf"') 
                 msg.attach(part)
 
         server = smtplib.SMTP('smtp.gmail.com', 587)
@@ -54,41 +65,38 @@ async def send_email_with_cv(target_email):
     except Exception as e:
         with open(BLACKLIST_FILE, "a") as f:
             f.write(target_email + "\n")
-        print(f"⚠️ تم حظر إيميل معطوب: {target_email}")
+        print(f"⚠️ فشل وتم الحظر: {target_email} | الخطأ: {e}")
         return False
 
 async def get_fresh_emails(page):
-    # قائمة بحث ضخمة لضمان نتائج تتخطى الـ 0
+    # كلمات بحث تستهدف إيميلات التوظيف (HR) الحقيقية
     queries = [
-        'site:sa.opensooq.com "إيميل" "ثانوي"',
-        'site:mourjan.com "السعودية" "ثانوي" "إيميل"',
-        'site:twitter.com "ثانوي" "إيميل" "توظيف"',
-        'site:facebook.com "وظائف" "ثانوي" "السعودية" "gmail"',
-        'site:instagram.com "ثانوي" "إيميل" "الدمام"',
-        '"@gmail.com" وظائف ثانوي الرياض 2026',
-        '"@outlook.com" وظائف ثانوي جدة 2026',
-        '"@hotmail.com" وظائف ثانوي الشرقية 2026',
-        'site:tanqeeb.com "ثانوي" "السعودية" "إيميل"'
+        'site:sa.opensooq.com "أرسل السيرة" "ثانوي"',
+        'site:mourjan.com "توظيف" "ثانوي" "gmail"',
+        '"hr@" وظائف ثانوي السعودية 2026',
+        '"jobs@" شركة ثانوي الدمام 2026',
+        '"careers@" وظيفة ثانوي الرياض 2026',
+        'site:linkedin.com/posts "ثانوي" "إيميل" "السعودية"'
     ]
     found_emails = set()
     for query in queries:
         try:
-            print(f"🔎 قنص أهداف من: {query[:30]}...")
-            await page.goto(f'https://www.google.com/search?q={query}&num=100')
-            await asyncio.sleep(random.randint(7, 10))
+            print(f"🔎 قنص أهداف ذكية: {query[:40]}...")
+            # جلب نتائج الشهر الأخير فقط لضمان وظائف حقيقية tbs=qdr:m
+            await page.goto(f'https://www.google.com/search?q={query}&num=50&tbs=qdr:m')
+            await asyncio.sleep(random.randint(5, 7))
             content = await page.content()
             emails = re.findall(r'[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+', content)
             for e in emails:
-                e_clean = e.lower().strip()
-                if not any(x in e_clean for x in ['google', 'facebook', 'instagram', 'sentry', 'w3.org']):
-                    found_emails.add(e_clean)
+                if is_valid_email(e):
+                    found_emails.add(e.lower().strip())
         except: continue
     return list(found_emails)
 
 async def run_bot():
     async with async_playwright() as p:
-        print(f"📁 السيفي المكتشف: {CV_PATH}")
-        print("🚀 انطلاق وضع 'الاكتساح الشامل' لعام 2026")
+        print(f"📁 السيفي المعتمد: {CV_PATH}")
+        print("🚀 انطلاق نسخة القنص الذكي - 2026")
         
         browser = await p.chromium.launch(headless=True)
         page = await browser.new_page()
@@ -101,19 +109,19 @@ async def run_bot():
                     ignore_list.update(f.read().splitlines())
 
         to_apply = [e for e in discovered_emails if e not in ignore_list]
-        print(f"🎯 المستهدف اليوم بعد الفلترة: {len(to_apply)} جهة توظيف جديدة.")
+        print(f"🎯 المستهدف اليوم بعد التنظيف: {len(to_apply)} جهة حقيقية.")
 
         success_count = 0
         for email in to_apply:
             if await send_email_with_cv(email):
-                print(f"✅ تم الإرسال بنجاح إلى: {email}")
+                print(f"✅ تم التقديم بنجاح: {email}")
                 with open(DATABASE_FILE, "a") as f:
                     f.write(email + "\n")
                 success_count += 1
-                await asyncio.sleep(random.randint(20, 45))
+                await asyncio.sleep(random.randint(20, 40))
 
         await browser.close()
-        print(f"🏁 التقرير النهائي: تم إرسال {success_count} سيرة ذاتية بنجاح.")
+        print(f"🏁 تم إرسال {success_count} سيرة ذاتية بنجاح.")
 
 if __name__ == "__main__":
     asyncio.run(run_bot())
