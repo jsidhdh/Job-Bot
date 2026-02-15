@@ -9,28 +9,39 @@ from email.mime.base import MIMEBase
 from email import encoders
 from playwright.async_api import async_playwright
 
-# --- الإعدادات الأساسية ---
+# --- الإعدادات (تأكد من ضبط Secret في GitHub باسم EMAIL_PASSWORD) ---
 EMAIL_USER = "oedn305@gmail.com"
 EMAIL_PASS = os.getenv("EMAIL_PASSWORD") 
 CV_PATH = "My_CV.pdf"
+DATABASE_FILE = "applied_emails.txt"
 
-# دالة لإرسال السيفي
 async def send_email_with_cv(target_email):
+    """دالة إرسال الإيميل مع مرفق السيرة الذاتية"""
     try:
         msg = MIMEMultipart()
         msg['From'] = EMAIL_USER
         msg['To'] = target_email
-        msg['Subject'] = f"تقديم على وظيفة شاغرة (ثانوية عامة) - تحديث {random.randint(100, 999)}"
+        msg['Subject'] = f"طلب توظيف (ثانوية عامة) - تحديث {random.randint(1000, 9999)}"
         
-        body = "السلام عليكم، أتقدم بطلب توظيف لمؤهل الثانوية العامة. مرفق السيرة الذاتية. شكراً لكم."
+        body = """السلام عليكم ورحمة الله وبركاته،
+        
+أتقدم لسيادتكم بطلب التوظيف لمؤهل (الثانوية العامة). أنا شاب سعودي لدي الطموح والجدية للعمل ضمن فريقكم.
+مرفق لكم السيرة الذاتية (CV) للاطلاع عليها.
+
+شاكر ومقدر لكم وقتكم."""
+
         msg.attach(MIMEText(body, 'plain'))
 
-        with open(CV_PATH, "rb") as f:
-            part = MIMEBase('application', 'octet-stream')
-            part.set_payload(f.read())
-            encoders.encode_base64(part)
-            part.add_header('Content-Disposition', f"attachment; filename={CV_PATH}")
-            msg.attach(part)
+        if os.path.exists(CV_PATH):
+            with open(CV_PATH, "rb") as f:
+                part = MIMEBase('application', 'octet-stream')
+                part.set_payload(f.read())
+                encoders.encode_base64(part)
+                part.add_header('Content-Disposition', f"attachment; filename={CV_PATH}")
+                msg.attach(part)
+        else:
+            print(f"⚠️ ملف {CV_PATH} غير موجود!")
+            return False
 
         server = smtplib.SMTP('smtp.gmail.com', 587)
         server.starttls()
@@ -38,80 +49,77 @@ async def send_email_with_cv(target_email):
         server.send_message(msg)
         server.quit()
         return True
-    except:
+    except Exception as e:
+        print(f"❌ فشل الإرسال إلى {target_email}: {e}")
         return False
 
-# دالة البحث عن إيميلات جديدة "لانهائية"
 async def get_fresh_emails(page):
-    # قائمة ضخمة من كلمات البحث لضمان الوصول لكل زاوية في الإنترنت
+    """دالة البحث عن إيميلات جديدة في منصات متعددة"""
     queries = [
-        'site:twitter.com "ثانوي" "الدمام" "إيميل"',
-        'site:instagram.com "توظيف" "ثانوي" "السعودية" "@gmail.com"',
-        'site:facebook.com "وظائف شاغرة" "ثانوي" "إيميل"',
-        '"إرسال السيرة الذاتية" ثانوي الدمام الخبر',
-        '"cv" ثانوي وظائف السعودية إيميل'
+        'site:sa.opensooq.com "إيميل" "ثانوي"',
+        'site:mourjan.com "السعودية" "ثانوي" "إيميل"',
+        'site:bebee.com "السعودية" "ثانوي" "وظائف"',
+        '"@gmail.com" وظائف ثانوي الدمام 2026',
+        '"@outlook.com" توظيف ثانوي الخبر 2026',
+        'site:linkedin.com/jobs "ثانوي" "السعودية"'
     ]
     
-    all_found_emails = set()
-
+    found_emails = set()
     for query in queries:
         try:
-            print(f"🔎 جاري التعمق في البحث عن: {query}")
-            await page.goto(f'https://www.google.com/search?q={query}')
-            await asyncio.sleep(4)
+            print(f"🔎 جاري القنص في: {query}")
+            await page.goto(f'https://www.google.com/search?q={query}&num=30')
+            await asyncio.sleep(random.randint(5, 10)) # تأخير لتجنب الحظر
             
-            # سحب المحتوى والبحث عن الإيميلات
             content = await page.content()
             emails = re.findall(r'[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+', content)
             
             for e in emails:
-                if not any(x in e.lower() for x in ['google', 'w3.org', 'png', 'jpg', 'git']):
-                    all_found_emails.add(e)
-            
-            # محاولة الضغط على الصفحة الثانية في جوجل لزيادة النتائج
-            try:
-                next_button = await page.query_selector('a#pnnext')
-                if next_button:
-                    await next_button.click()
-                    await asyncio.sleep(4)
-                    content = await page.content()
-                    more_emails = re.findall(r'[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+', content)
-                    for e in more_emails:
-                        all_found_emails.add(e)
-            except:
-                pass
+                e_low = e.lower()
+                if not any(x in e_low for x in ['google', 'w3.org', 'schema', 'sentry', 'facebook', 'twitter', 'png', 'jpg']):
+                    found_emails.add(e_low)
         except:
             continue
-            
-    return list(all_found_emails)
-    # استخراج الإيميلات من نتائج البحث
-    found = re.findall(r'[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+', content)
-    
-    # تنظيف القائمة
-    clean = {e for e in found if not any(x in e.lower() for x in ['google', 'w3.org', 'png', 'jpg'])}
-    return list(clean)
+    return list(found_emails)
 
 async def run_bot():
     async with async_playwright() as p:
-        print("🚀 انطلاق البوت اللانهائي...")
+        print("🚀 انطلاق البوت اللانهائي - نسخة 2026")
         browser = await p.chromium.launch(headless=True)
-        page = await browser.new_page()
+        context = await browser.new_context(
+            user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
+        )
+        page = await context.new_page()
 
-        # 1. التقديم على القائمة الثابتة (للتأكيد)
-        fixed_emails = ["hr@tamimi-group.com", "jobs@kudu.com.sa", "recruitment@almarai.com"] # أضف ما تشاء
+        # 1. جلب الإيميلات الجديدة من الإنترنت
+        discovered_emails = await get_fresh_emails(page)
         
-        # 2. البحث عن إيميلات جديدة
-        new_emails = await get_fresh_emails(page)
-        
-        all_targets = list(set(fixed_emails + new_emails))
-        print(f"🎯 سيتم التقديم على {len(all_targets)} جهة اليوم.")
+        # 2. تحميل الذاكرة (الإيميلات التي تم التقديم عليها سابقاً)
+        if os.path.exists(DATABASE_FILE):
+            with open(DATABASE_FILE, "r") as f:
+                applied_list = set(f.read().splitlines())
+        else:
+            applied_list = set()
 
-        for email in all_targets:
+        # 3. تصفية القائمة لإرسال الجديد فقط
+        to_apply = [e for e in discovered_emails if e not in applied_list]
+        
+        print(f"🎯 وجدنا {len(discovered_emails)} إيميل إجمالي.")
+        print(f"🆕 سيتم التقديم على {len(to_apply)} جهة جديدة الآن.")
+
+        success_count = 0
+        for email in to_apply:
             if await send_email_with_cv(email):
-                print(f"✅ تم الإرسال إلى: {email}")
-                await asyncio.sleep(random.randint(5, 15)) # تأخير عشوائي عشان ما ننكشف
+                print(f"✅ تم التقديم بنجاح على: {email}")
+                # حفظ الإيميل في الذاكرة لعدم تكرار الإرسال
+                with open(DATABASE_FILE, "a") as f:
+                    f.write(email + "\n")
+                success_count += 1
+                # تأخير بين كل إرسال وإرسال لسلامة حسابك
+                await asyncio.sleep(random.randint(15, 30))
 
         await browser.close()
+        print(f"🏁 المهمة انتهت. إجمالي التقديمات الجديدة: {success_count}")
 
 if __name__ == "__main__":
     asyncio.run(run_bot())
