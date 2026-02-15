@@ -43,21 +43,47 @@ async def send_email_with_cv(target_email):
 
 # دالة البحث عن إيميلات جديدة "لانهائية"
 async def get_fresh_emails(page):
-    # كلمات بحث تتغير عشوائياً كل مرة يشتغل فيها البوت لضمان نتائج جديدة
-    keywords = [
-        'وظائف "الدمام" ثانوي إيميل',
-        'تعلن شركة "الخبر" توظيف ثانوي إيميل',
-        'hr email saudi "high school"',
-        'إيميل التوظيف شركة "الظهران"',
-        'وظائف حراس أمن إيميل السعودية'
+    # قائمة ضخمة من كلمات البحث لضمان الوصول لكل زاوية في الإنترنت
+    queries = [
+        'site:twitter.com "ثانوي" "الدمام" "إيميل"',
+        'site:instagram.com "توظيف" "ثانوي" "السعودية" "@gmail.com"',
+        'site:facebook.com "وظائف شاغرة" "ثانوي" "إيميل"',
+        '"إرسال السيرة الذاتية" ثانوي الدمام الخبر',
+        '"cv" ثانوي وظائف السعودية إيميل'
     ]
-    query = random.choice(keywords)
-    print(f"🔎 جاري البحث عن: {query}")
     
-    await page.goto(f'https://www.google.com/search?q={query}')
-    await asyncio.sleep(5)
-    
-    content = await page.content()
+    all_found_emails = set()
+
+    for query in queries:
+        try:
+            print(f"🔎 جاري التعمق في البحث عن: {query}")
+            await page.goto(f'https://www.google.com/search?q={query}')
+            await asyncio.sleep(4)
+            
+            # سحب المحتوى والبحث عن الإيميلات
+            content = await page.content()
+            emails = re.findall(r'[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+', content)
+            
+            for e in emails:
+                if not any(x in e.lower() for x in ['google', 'w3.org', 'png', 'jpg', 'git']):
+                    all_found_emails.add(e)
+            
+            # محاولة الضغط على الصفحة الثانية في جوجل لزيادة النتائج
+            try:
+                next_button = await page.query_selector('a#pnnext')
+                if next_button:
+                    await next_button.click()
+                    await asyncio.sleep(4)
+                    content = await page.content()
+                    more_emails = re.findall(r'[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+', content)
+                    for e in more_emails:
+                        all_found_emails.add(e)
+            except:
+                pass
+        except:
+            continue
+            
+    return list(all_found_emails)
     # استخراج الإيميلات من نتائج البحث
     found = re.findall(r'[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+', content)
     
