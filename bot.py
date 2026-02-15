@@ -10,6 +10,7 @@ from email import encoders
 
 # --- الإعدادات ---
 EMAIL_USER = "oedn305@gmail.com"
+# تأكد أنك وضعت "App Password" المكون من 16 حرفاً في GitHub Secrets
 EMAIL_PASS = os.getenv("EMAIL_PASSWORD") 
 DATABASE_FILE = "applied_emails.txt"
 
@@ -27,76 +28,66 @@ async def send_email_with_cv(target_email):
         msg = MIMEMultipart()
         msg['From'] = EMAIL_USER
         msg['To'] = clean_email
-        msg['Subject'] = f"Request for Job - High School Graduate - {random.randint(100, 999)}"
+        msg['Subject'] = f"Request for Job Opportunity - {random.randint(100, 999)}"
+        
         body = "السلام عليكم، أرفق لكم سيرتي الذاتية للتقديم على الوظائف المتاحة بمؤهل ثانوي. شكراً لكم."
         msg.attach(MIMEText(body, 'plain', 'utf-8'))
-        if CV_PATH:
+
+        if CV_PATH and os.path.exists(CV_PATH):
             with open(CV_PATH, "rb") as f:
                 part = MIMEBase('application', 'octet-stream')
                 part.set_payload(f.read())
                 encoders.encode_base64(part)
-                part.add_header('Content-Disposition', 'attachment; filename="CV.pdf"') 
+                part.add_header('Content-Disposition', f'attachment; filename="CV.pdf"') 
                 msg.attach(part)
+
+        # محاولة الاتصال بخادم Gmail
         server = smtplib.SMTP('smtp.gmail.com', 587)
+        server.set_debuglevel(0) # اجعلها 1 إذا أردت رؤية تفاصيل الاتصال في الـ Logs
         server.starttls()
         server.login(EMAIL_USER, EMAIL_PASS)
         server.send_message(msg)
         server.quit()
         return True
-    except: return False
+    except Exception as e:
+        print(f"❌ خطأ أثناء الإرسال لـ {target_email}: {e}")
+        return False
 
 def generate_smart_emails():
-    """توليد إيميلات لشركات ومؤسسات توظيف حقيقية بناءً على النطاقات الشائعة"""
-    domains = [
-        'gmail.com', 'outlook.com', 'hotmail.com', 'yahoo.com',
-        'moe.gov.sa', 'aramco.com', 'stc.com.sa', 'saudia.com',
-        'sabic.com', 'almarai.com', 'panda.com.sa', 'jarir.com'
-    ]
-    prefixes = ['hr', 'jobs', 'careers', 'recruitment', 'cv', 'employment', 'staff']
-    
-    generated = []
-    # توليد مزيج من الإيميلات العامة والخاصة بالتوظيف
-    for d in domains:
-        for p in prefixes:
-            generated.append(f"{p}@{d}")
-    
-    # إضافة إيميلات تم قنصها سابقاً لضمان عدم ضياع الفرص
-    extra_targets = [
-        'recruitment@mcs.gov.sa', 'jobs@neom.com', 'careers@redseaglobal.com',
-        'hr@aramco.com', 'cv@alkhofash.com', 'jobs@saudiatransport.com'
-    ]
-    return list(set(generated + extra_targets))
+    # القائمة التي نجحت في جلب 89 هدفاً
+    domains = ['gmail.com', 'outlook.com', 'hotmail.com', 'yahoo.com', 'moe.gov.sa', 'aramco.com', 'stc.com.sa', 'saudia.com', 'sabic.com', 'almarai.com', 'panda.com.sa', 'jarir.com']
+    prefixes = ['hr', 'jobs', 'careers', 'recruitment', 'cv', 'employment']
+    generated = [f"{p}@{d}" for d in domains for p in prefixes]
+    extra = ['recruitment@mcs.gov.sa', 'jobs@neom.com', 'careers@redseaglobal.com']
+    return list(set(generated + extra))
 
 async def run_bot():
-    print(f"📁 السيفي: {CV_PATH}")
-    print("🚀 تفعيل وضع 'توليد الأهداف الذكي' لكسر حاجز الصفر")
-    
-    # 1. توليد الأهداف بدلاً من انتظار محركات البحث
+    print(f"📁 السيفي المكتشف: {CV_PATH}")
+    if not CV_PATH:
+        print("⚠️ خطأ: لم يتم العثور على ملف PDF!")
+        return
+
     target_emails = generate_smart_emails()
     
-    # 2. فلترة الأهداف المكررة
     applied_list = set()
     if os.path.exists(DATABASE_FILE):
         with open(DATABASE_FILE, "r") as f:
             applied_list = set(f.read().splitlines())
 
     to_apply = [e for e in target_emails if e not in applied_list]
-    
-    print(f"🎯 المستهدف اليوم: {len(to_apply)} جهة توظيف حقيقية.")
+    print(f"🎯 المستهدف اليوم: {len(to_apply)} جهة توظيف.")
 
     success_count = 0
     for email in to_apply:
         if await send_email_with_cv(email):
-            print(f"✅ تم الإرسال: {email}")
+            print(f"✅ تم الإرسال بنجاح إلى: {email}")
             with open(DATABASE_FILE, "a") as f:
                 f.write(email + "\n")
             success_count += 1
-            # تأخير بسيط لتجنب حظر Gmail
-            await asyncio.sleep(random.randint(10, 20))
-            if success_count >= 15: # إرسال 15 سيفي في كل دفعة
-                break
+            await asyncio.sleep(10) # تأخير بسيط
+            if success_count >= 10: break # إرسال 10 في كل دفعة
 
     print(f"🏁 التقرير النهائي: تم إرسال {success_count} سيرة ذاتية بنجاح.")
 
 if __name__ == "__main__":
-    asyncio.run(run_bot())
+    asyncio.run(run_bot())ص
