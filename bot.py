@@ -28,7 +28,7 @@ async def send_email_with_cv(target_email):
         msg = MIMEMultipart()
         msg['From'] = EMAIL_USER
         msg['To'] = clean_email
-        msg['Subject'] = f"Request for Job - High School Graduate - {random.randint(100, 999)}"
+        msg['Subject'] = f"CV Submission - High School Graduate - {random.randint(100, 999)}"
         body = "السلام عليكم، أرفق لكم سيرتي الذاتية للتقديم على الوظائف المتاحة. شكراً لكم."
         msg.attach(MIMEText(body, 'plain', 'utf-8'))
         if CV_PATH:
@@ -47,50 +47,49 @@ async def send_email_with_cv(target_email):
     except: return False
 
 async def get_fresh_emails(page):
-    # كلمات بحث "هجومية" لاصطياد الإيميلات من كل مكان
+    # كلمات بحث تستهدف "قطاعات" حقيقية ومدن سعودية
     queries = [
-        '"أرسل السيرة الذاتية إلى" gmail.com السعودية',
-        '"التقديم عبر البريد" ثانوي الرياض الدمام',
-        '"إيميل التوظيف" شركة gmail.com',
-        'site:sa.opensooq.com "gmail.com" وظائف',
-        'site:instagram.com "إيميل" "توظيف" ثانوي',
-        '"hr" "jobs" "@outlook.com" السعودية'
+        'شركة "توظيف" "الرياض" ثانوي gmail.com',
+        'مؤسسة "الدمام" "وظائف" ثانوي outlook.com',
+        'site:target.com.sa "hr" ثانوي',
+        'site:sa.jooble.org "gmail.com"',
+        '"للتواصل" إيميل ثانوي جدة 2026',
+        'site:linkedin.com/posts "أرسل السيفي" "ثانوي"'
     ]
     found_emails = set()
     for query in queries:
         try:
-            # استخدام DuckDuckGo لأنه يعطي نتائج "أكثر" بدون حظر
-            url = f'https://duckduckgo.com/html/?q={query}'
-            print(f"🔎 قنص أهداف جديدة من: {query[:30]}")
-            await page.goto(url)
-            await asyncio.sleep(4)
+            # استخدام Bing كمحرك أساسي الآن لأنه يظهر إيميلات الشركات أكثر
+            print(f"🔎 البحث في قطاعات: {query[:30]}")
+            await page.goto(f'https://www.bing.com/search?q={query}')
+            await asyncio.sleep(6)
             content = await page.content()
             emails = re.findall(r'[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+', content)
             for e in emails:
                 e_c = e.lower().strip()
-                # فلترة ذكية جداً (استبعاد 22 وأي إيميل وهمي)
-                if not e_c.startswith('22@') and not any(x in e_c for x in ['google', 'sentry', 'w3.org', 'example']):
+                # فلترة صارمة للإيميلات غير المفيدة
+                if not e_c.startswith('22@') and not any(x in e_c for x in ['google', 'sentry', 'w3.org', 'example', 'microsoft']):
                     found_emails.add(e_c)
         except: continue
     return list(found_emails)
 
 async def run_bot():
     async with async_playwright() as p:
-        print(f"📁 السيفي المعتمد: {CV_PATH}")
+        print(f"📁 السيفي: {CV_PATH}")
         browser = await p.chromium.launch(headless=True)
-        context = await browser.new_context(user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
+        context = await browser.new_context(user_agent="Mozilla/5.0 (iPhone; CPU iPhone OS 14_7_1 like Mac OS X) AppleWebKit/605.1.15")
         page = await context.new_page()
         
         discovered_emails = await get_fresh_emails(page)
         
-        # تصفير الذاكرة (مهم جداً تمسح الملف في GitHub أول)
+        # تذكير: لازم تمسح applied_emails.txt في جيت هاب
         applied_list = set()
         if os.path.exists(DATABASE_FILE):
             with open(DATABASE_FILE, "r") as f:
                 applied_list = set(f.read().splitlines())
 
         to_apply = [e for e in discovered_emails if e not in applied_list]
-        print(f"🎯 المستهدف اليوم: {len(to_apply)} جهة توظيف جديدة.")
+        print(f"🎯 المستهدف الجديد: {len(to_apply)} جهة توظيف.")
 
         success_count = 0
         for email in to_apply:
@@ -99,10 +98,10 @@ async def run_bot():
                 with open(DATABASE_FILE, "a") as f:
                     f.write(email + "\n")
                 success_count += 1
-                await asyncio.sleep(random.randint(5, 10))
+                await asyncio.sleep(random.randint(10, 20))
 
         await browser.close()
-        print(f"🏁 التقرير النهائي: تم إرسال {success_count} سيرة ذاتية.")
+        print(f"🏁 التقرير: تم إرسال {success_count} سيرة ذاتية.")
 
 if __name__ == "__main__":
     asyncio.run(run_bot())
