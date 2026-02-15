@@ -1,0 +1,31 @@
+name: Job_Bot_Auto_Apply
+
+on:
+  schedule:
+    # سيشغل البوت تلقائياً الساعة 9 صباحاً بتوقيت السعودية يومياً
+    - cron: '0 6 * * *'
+  # يتيح لك تشغيل البوت يدوياً في أي وقت للتجربة
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'
+
+      - name: Install dependencies
+        run: |
+          pip install playwright selenium webdriver-manager
+          playwright install chromium
+
+      - name: Run Job Bot
+        env:
+          USER_EMAIL: ${{ secrets.USER_EMAIL }}
+          USER_PASSWORD: ${{ secrets.USER_PASSWORD }}
+        run: python bot.py
