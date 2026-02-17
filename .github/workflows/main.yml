@@ -1,23 +1,26 @@
-name: Daily Job Application Bot
+name: Job Application Bot
 on:
-  schedule:
-    - cron: '0 8 * * *' # يشتغل كل يوم الساعة 8 الصبح بتوقيت السعودية
-  workflow_dispatch: # زر للتشغيل اليدوي
+  workflow_dispatch: # زر التشغيل اليدوي
 
 jobs:
-  run-bot:
+  build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - name: Checkout Code
+        uses: actions/checkout@v3
+
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
           python-version: '3.9'
-      - name: Install dependencies
+
+      - name: Install Dependencies
         run: |
-          pip install playwright
-          playwright install chromium
-      - name: Run Application Bot
+          python -m pip install --upgrade pip
+          pip install requests beautifulsoup4
+
+      - name: Run Job Bot
         env:
-          EMAIL_PASSWORD: ${{ secrets.EMAIL_PASSWORD }}
+          API_KEY: ${{ secrets.API_KEY }}
+        # تأكدنا أن الملف اسمه bot.py كما في مستودعك
         run: python bot.py
