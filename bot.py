@@ -1,99 +1,72 @@
-import asyncio
-import os
-import re
-import random
-import smtplib
+import os, random, smtplib, asyncio, requests
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from email.mime.base import MIMEBase
 from email import encoders
 
-# --- الإعدادات ---
-EMAIL_USER = "oedn305@gmail.com"
-EMAIL_PASS = os.getenv("EMAIL_PASSWORD") 
-DATABASE_FILE = "applied_emails.txt"
+# --- الإعدادات (تأكد من اسم السيكرت في قيت هب API_KEY) ---
+SENDER = "oedn305@gmail.com"
+PASS = os.getenv("API_KEY") 
+DB = "applied_emails.txt"
 
-def get_cv_path():
-    for file in os.listdir('.'):
-        if file.lower().endswith('.pdf'):
-            return file
-    return None
+def get_cv():
+    return next((f for f in os.listdir('.') if f.lower().endswith('.pdf')), None)
 
-CV_PATH = get_cv_path()
-
-def clean_text(text):
-    """تنظيف النص من أي رموز غير مرئية أو عربية تسبب فشل الإرسال"""
-    if not text: return ""
-    return "".join(c for c in text if ord(c) < 128).strip()
-
-async def send_email_with_cv(target_email):
-    # تنظيف الإيميل قسرياً من أي رموز ASCII معطوبة
-    target_email = clean_text(target_email)
-    
+def send_cv(target):
     try:
         msg = MIMEMultipart()
-        msg['From'] = EMAIL_USER
-        msg['To'] = target_email
-        msg['Subject'] = f"Job Application - High School - {random.randint(100, 999)}"
+        msg['From'], msg['To'] = SENDER, target
+        msg['Subject'] = f"High School Graduate - Job Application {random.randint(100, 999)}"
+        msg.attach(MIMEText("Greetings,\n\nPlease find my CV attached for job opportunities.\n\nRegards.", 'plain'))
         
-        # كتابة الرسالة بتنسيق يضمن عدم تداخل اللغات
-        body = "Greetings,\n\nPlease find my CV attached for potential job opportunities (High School Graduate).\n\nRegards."
-        msg.attach(MIMEText(body, 'plain'))
-
-        if CV_PATH and os.path.exists(CV_PATH):
-            with open(CV_PATH, "rb") as f:
+        cv = get_cv()
+        if cv:
+            with open(cv, "rb") as f:
                 part = MIMEBase('application', 'octet-stream')
                 part.set_payload(f.read())
                 encoders.encode_base64(part)
-                part.add_header('Content-Disposition', 'attachment; filename="CV.pdf"') 
+                part.add_header('Content-Disposition', f'attachment; filename="CV.pdf"')
                 msg.attach(part)
 
-        server = smtplib.SMTP('smtp.gmail.com', 587)
-        server.starttls()
-        server.login(EMAIL_USER, EMAIL_PASS)
-        server.send_message(msg)
-        server.quit()
+        with smtplib.SMTP('smtp.gmail.com', 587) as s:
+            s.starttls()
+            s.login(SENDER, PASS)
+            s.send_message(msg)
         return True
-    except Exception as e:
-        print(f"❌ Error sending to {target_email}: {str(e)}")
-        return False
+    except: return False
 
-def generate_smart_emails():
-    # قائمة الإيميلات التي نجحت في الاختبار السابق
-    domains = ['gmail.com', 'outlook.com', 'hotmail.com', 'yahoo.com', 'moe.gov.sa', 'aramco.com', 'stc.com.sa', 'saudia.com', 'sabic.com', 'almarai.com', 'panda.com.sa', 'jarir.com']
-    prefixes = ['hr', 'jobs', 'careers', 'recruitment', 'cv', 'employment']
-    generated = [f"{p}@{d}" for d in domains for p in prefixes]
-    extra = ['recruitment@mcs.gov.sa', 'jobs@neom.com', 'careers@redseaglobal.com']
-    # تنظيف كل إيميل يتم توليده فوراً
-    return list(set(clean_text(e) for e in generated + extra))
+def find_jobs():
+    print("🔎 جاري سحب روابط التقديم المباشرة (وظائف ثانوية)...")
+    try:
+        # البحث عن روابط ثانوية في أشهر المواقع
+        r = requests.get("https://saudi.tanqeeb.com/ar/s/وظائف/وظائف-لحملة-الثانوية", timeout=10)
+        return [f"https://saudi.tanqeeb.com{l['href']}" for l in __import__('bs4').BeautifulSoup(r.text, 'html.parser').find_all('a', href=True) if 'ثانوية' in l.text][:5]
+    except: return []
 
-async def run_bot():
-    print(f"📁 CV Found: {CV_PATH}")
-    if not CV_PATH:
-        print("⚠️ No PDF file found!")
+async def run():
+    cv = get_cv()
+    if not cv or not PASS:
+        print(f"❌ خطأ: CV موجود: {bool(cv)} | الباسورد موجود: {bool(PASS)}")
         return
 
-    target_emails = generate_smart_emails()
+    # 1. إرسال إيميلات لشركات كبرى
+    targets = [f"{p}@{d}" for d in ['aramco.com', 'stc.com.sa', 'sabic.com', 'neom.com', 'almarai.com', 'panda.com.sa'] for p in ['hr', 'jobs', 'careers']]
+    applied = open(DB, 'r').read().splitlines() if os.path.exists(DB) else []
     
-    applied_list = set()
-    if os.path.exists(DATABASE_FILE):
-        with open(DATABASE_FILE, "r") as f:
-            applied_list = set(clean_text(line) for line in f.read().splitlines())
+    count = 0
+    for email in [e for e in targets if e not in applied]:
+        if send_cv(email):
+            print(f"✅ تم الإرسال إلى: {email}")
+            with open(DB, 'a') as f: f.write(email + "\n")
+            count += 1
+            if count >= 10: break
+            await asyncio.sleep(5)
 
-    to_apply = [e for e in target_emails if e and e not in applied_list]
-    print(f"🎯 Targets today: {len(to_apply)}")
-
-    success_count = 0
-    for email in to_apply:
-        if await send_email_with_cv(email):
-            print(f"✅ Success: {email}")
-            with open(DATABASE_FILE, "a") as f:
-                f.write(email + "\n")
-            success_count += 1
-            await asyncio.sleep(10) # انتظار 10 ثواني بين كل إرسال
-            if success_count >= 15: break 
-
-    print(f"🏁 Final Report: Sent {success_count} emails successfully.")
+    # 2. جلب روابط تقديم مباشرة
+    links = find_jobs()
+    if links:
+        print("\n🔗 روابط تقديم مباشرة جديدة:")
+        for l in links: print(f"👉 {l}")
 
 if __name__ == "__main__":
-    asyncio.run(run_bot())ص
+    asyncio.run(run())
