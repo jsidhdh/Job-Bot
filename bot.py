@@ -1,49 +1,70 @@
+import os
 import requests
 from bs4 import BeautifulSoup
-import time
+import smtplib
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
 
-def search_live_jobs():
-    # روابط البحث المخصصة لوظائف الثانوي في قطاع المقاولات والنفط بالسعودية
-    queries = [
-        "https://saudi.tanqeeb.com/ar/s/وظائف/وظائف-لحملة-الثانوية",
-        "https://www.wadhefa.com/news/"
-    ]
+# --- الإعدادات ---
+MY_EMAIL = "oedn305@gmail.com"
+EMAIL_PASSWORD = os.getenv("API_KEY") # الـ 16 حرف حقت قوقل
+
+def get_fresh_jobs():
+    """سحب روابط الوظائف اللي نزلت اليوم وتطلب ثانوية"""
+    print("🚀 جاري سحب أحدث وظائف الثانوية...")
+    url = "https://saudi.tanqeeb.com/ar/s/وظائف/وظائف-لحملة-الثانوية"
+    headers = {'User-Agent': 'Mozilla/5.0'}
+    job_list = []
     
-    headers = {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
-    }
-
-    print("🚀 جاري مسح السوق بحثاً عن وظائف ثانوية حقيقية (آخر 24 ساعة)...")
-    print("="*50)
-
-    found_jobs = []
-
-    for url in queries:
-        try:
-            response = requests.get(url, headers=headers, timeout=15)
-            soup = BeautifulSoup(response.text, 'html.parser')
-            
-            # استخراج الروابط التي تحتوي على كلمات مفتاحية (ثانوي، مقاولات، فني)
-            links = soup.find_all('a', href=True)
-            for link in links:
-                text = link.text.strip()
-                href = link['href']
+    try:
+        r = requests.get(url, headers=headers, timeout=15)
+        soup = BeautifulSoup(r.text, 'html.parser')
+        
+        # البحث عن الروابط
+        for a in soup.find_all('a', href=True):
+            title = a.text.strip()
+            # تصفية الوظائف عشان نضمن إنها ثانوية
+            if any(word in title for word in ["ثانوية", "ثانوي", "أمن", "مشغل", "فني"]):
+                href = a['href']
+                if not href.startswith('http'):
+                    href = f"https://saudi.tanqeeb.com{href}"
                 
-                if any(word in text for word in ["ثانوية", "ثانوي", "مشغل", "فني", "أمن"]):
-                    if not href.startswith('http'):
-                        href = f"https://saudi.tanqeeb.com{href}"
-                    
-                    job_entry = f"📍 وظيفة: {text}\n🔗 رابط التقديم: {href}"
-                    if job_entry not in found_jobs:
-                        found_jobs.append(job_entry)
-                        print(job_entry)
-                        print("-" * 30)
-                        if len(found_jobs) >= 15: break
-        except Exception as e:
-            print(f"⚠️ فشل المسح في أحد المواقع: {e}")
+                entry = f"📍 {title}\n🔗 {href}\n"
+                if entry not in job_list:
+                    job_list.append(entry)
+            
+            if len(job_list) >= 15: break # نكتفي بـ 15 رابط فرش
+    except Exception as e:
+        print(f"❌ خطأ في سحب الوظائف: {e}")
+    
+    return job_list
 
-    if not found_jobs:
-        print("📭 لم يتم العثور على وظائف جديدة في هذه اللحظة. جرب لاحقاً.")
+def send_links_to_my_email(jobs):
+    """إرسال الروابط المجموعة إلى إيميلك الشخصي"""
+    if not jobs:
+        print("📭 ما لقيت وظائف جديدة حالياً.")
+        return
+
+    try:
+        msg = MIMEMultipart()
+        msg['From'] = MY_EMAIL
+        msg['To'] = MY_EMAIL
+        msg['Subject'] = f"🔥 روابط وظائف ثانوية جديدة - بتاريخ اليوم"
+
+        body = "يا بطل، هذي أحدث روابط التوظيف (ثانوية عامة) اللي نزلت اليوم:\n\n"
+        body += "\n".join(jobs)
+        body += "\n\nبالتوفيق، قدم عليها بسرعة قبل تقفل!"
+
+        msg.attach(MIMEText(body, 'plain', 'utf-8'))
+
+        with smtplib.SMTP('smtp.gmail.com', 587) as server:
+            server.starttls()
+            server.login(MY_EMAIL, EMAIL_PASSWORD)
+            server.send_message(msg)
+        print("✅ تم إرسال قائمة الروابط إلى إيميلك بنجاح!")
+    except Exception as e:
+        print(f"❌ فشل إرسال الإيميل: {e}")
 
 if __name__ == "__main__":
-    search_live_jobs()
+    links = get_fresh_jobs()
+    send_links_to_my_email(links)
