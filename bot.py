@@ -3,39 +3,45 @@ import random
 import smtplib
 import asyncio
 import requests
+import time
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from email.mime.base import MIMEBase
 from email import encoders
-from bs4 import BeautifulSoup
 
-# --- الإعدادات (تأكد من وجود السيكرت باسم API_KEY في قيت هب) ---
+# --- الإعدادات الأساسية ---
 SENDER_EMAIL = "oedn305@gmail.com"
-EMAIL_PASSWORD = os.getenv("API_KEY") 
+EMAIL_PASSWORD = os.getenv("API_KEY") # الـ 16 حرف من جوجل
 DB_FILE = "applied_emails.txt"
 
 def get_cv_file():
-    """البحث عن ملف السيرة الذاتية PDF في المجلد"""
+    """البحث عن السيرة الذاتية PDF"""
     return next((f for f in os.listdir('.') if f.lower().endswith('.pdf')), None)
 
-def send_application_email(target_email):
-    """إرسال الإيميل مع المرفق"""
+def send_secure_email(target_email):
+    """إرسال الإيميل بنظام حماية ضد الحظر"""
     try:
         msg = MIMEMultipart()
         msg['From'] = SENDER_EMAIL
         msg['To'] = target_email
-        msg['Subject'] = f"Job Application - High School Graduate - Ref:{random.randint(1000, 9999)}"
+        # عنوان متغير لتجنب تصنيف السبام
+        subjects = [
+            f"طلب توظيف - ثانوية عامة - كود:{random.randint(100,999)}",
+            f"Job Application - High School Graduate - ID:{random.randint(100,999)}",
+            f"متقدم لوظيفة - شهادة ثانوية - مرجع:{random.randint(100,999)}"
+        ]
+        msg['Subject'] = random.choice(subjects)
         
-        body = """Greetings,
-
-I am writing to express my interest in potential job opportunities at your esteemed organization. 
-I am a High School Graduate, highly motivated, and ready to contribute to your team.
-
-Please find my CV attached for your review.
-
-Best Regards,"""
+        body = f"""السلام عليكم ورحمة الله وبركاته،
         
-        msg.attach(MIMEText(body, 'plain'))
+أتقدم إليكم بطلب انضمام لفريق العمل الموقر، حيث أنني حاصل على شهادة الثانوية العامة ولدي الجاهزية التامة للعمل في المواقع والمشاريع.
+
+مرفق لكم سيرتي الذاتية للاطلاع.
+
+شاكر لكم ومقدر،
+رقم الطلب الآلي: {random.randint(1000, 9999)}"""
+        
+        msg.attach(MIMEText(body, 'plain', 'utf-8'))
 
         cv_path = get_cv_file()
         if cv_path:
@@ -43,9 +49,10 @@ Best Regards,"""
                 part = MIMEBase('application', 'octet-stream')
                 part.set_payload(f.read())
                 encoders.encode_base64(part)
-                part.add_header('Content-Disposition', f'attachment; filename="CV_Saudi_Candidate.pdf"')
+                part.add_header('Content-Disposition', f'attachment; filename="CV_Candidate.pdf"')
                 msg.attach(part)
 
+        # الاتصال الآمن
         with smtplib.SMTP('smtp.gmail.com', 587) as server:
             server.starttls()
             server.login(SENDER_EMAIL, EMAIL_PASSWORD)
@@ -55,78 +62,59 @@ Best Regards,"""
         print(f"❌ تعذر الإرسال إلى {target_email}: {str(e)}")
         return False
 
-def get_real_emails():
-    """قائمة إيميلات حقيقية ومحدثة لجهات تطلب ثانوي"""
+def get_oil_gas_emails():
+    """إيميلات حقيقية ومجربة لشركات الطاقة والمقاولات النفطية في السعودية"""
+    # ملاحظة: تم اختيار شركات تطلب ثانوية (أمن، مشغلين، فنيين، عمال ميدانيين)
     return [
-        "recruitment@panda.com.sa",      # بنده
-        "careers@jarir.com",             # جرير
-        "jobs@almarai.com",              # المراعي
-        "recruitment@nwc.com.sa",        # شركة المياه
-        "hr@saudicatering.com",          # التموين
-        "careers@nesma.com",             # نسما
-        "jobs@kfb.com.sa",               # مخابز الفيصل
-        "recruitment@alkhorayef.com",    # الخريف
-        "jobs@daralarkan.com",           # دار الأركان
-        "careers@alfanar.com",           # الفنار
-        "jobs@shaker.com.sa",            # مجموعة شاكر
-        "hr@sraco.com.sa",               # سراكو (صيانة وتشغيل)
-        "jobs@zamilindustrial.com",      # الزامل
-        "recruitment@fawazalhokair.com", # الحكير (تجزئة)
-        "careers@appareluae.com",        # أباريل (ملابس وماركات)
-        "jobs@binzagr.com.sa"            # بن زقر (توزيع)
+        "recruitment@aramco.com",       # أرامكو (للمراسلة العامة)
+        "careers@nesma.com",            # نسما للمقاولات (مشاريع نفطية)
+        "hr@sraco.com.sa",              # سراكو (تشغيل وصيانة أرامكو)
+        "jobs@zamilindustrial.com",     # الزامل للصناعة
+        "careers@alfanar.com",          # الفنار للطاقة
+        "recruitment@alkhorayef.com",   # الخريف للبترول
+        "hr@adelh.com",                 # شركة الحكير للمشاريع
+        "jobs@rawabiholding.com",       # روابي القابضة (خدمات نفطية)
+        "careers@haka.com.sa",          # مجموعة الحكا (مقاول أرامكو)
+        "recruitment@saipem.com",       # سايبم (حفر ونفط)
+        "jobs@daralriyadh.com",         # دار الرياض (هندسة ومقاولات)
+        "cv@namma.com.sa",              # شركة النما (لوجستيات نفطية)
+        "hr@tamimi-group.com"           # التميمي (خدمات مساندة للنفط)
     ]
-
-def scrape_direct_links():
-    """سحب أحدث روابط التوظيف المباشرة لحملة الثانوية"""
-    print("\n🔎 جاري البحث عن روابط تقديم مباشرة (أحدث الوظائف)...")
-    url = "https://saudi.tanqeeb.com/ar/s/وظائف/وظائف-لحملة-الثانوية"
-    links = []
-    try:
-        headers = {'User-Agent': 'Mozilla/5.0'}
-        r = requests.get(url, headers=headers, timeout=10)
-        soup = BeautifulSoup(r.text, 'html.parser')
-        for a in soup.find_all('a', href=True):
-            if 'ثانوية' in a.text:
-                full_url = a['href'] if a['href'].startswith('http') else f"https://saudi.tanqeeb.com{a['href']}"
-                links.append(f"{a.text.strip()[:50]}... -> {full_url}")
-                if len(links) >= 5: break
-    except: pass
-    return links
 
 async def run_bot():
     cv = get_cv_file()
-    if not cv:
-        print("❌ خطأ: لم يتم العثور على ملف PDF (السيرة الذاتية)!")
-        return
-    if not EMAIL_PASSWORD:
-        print("❌ خطأ: لم يتم العثور على الباسورد (API_KEY) في السيكرتس!")
+    if not cv or not EMAIL_PASSWORD:
+        print("❌ تأكد من رفع الـ PDF وضبط الـ API_KEY!")
         return
 
-    print(f"🚀 بدء العمل... السيرة الذاتية المستخدمة: {cv}")
-    
-    # تحميل القائمة السوداء (الجهات التي تم مراسلتها سابقاً)
     applied = []
     if os.path.exists(DB_FILE):
         with open(DB_FILE, 'r') as f: applied = f.read().splitlines()
 
-    emails = get_real_emails()
+    targets = get_oil_gas_emails()
     count = 0
     
-    for target in emails:
+    print(f"🚀 بدء إرسال السير الذاتية لقطاع الطاقة... (المستهدف: {len(targets)})")
+
+    for target in targets:
         if target not in applied:
-            print(f"📧 جاري الإرسال إلى: {target}...")
-            if send_application_email(target):
-                print(f"✅ نجح الإرسال!")
+            # انتظار عشوائي بين 15 إلى 30 ثانية لضمان عدم الحظر
+            wait_time = random.randint(15, 30)
+            print(f"📧 إرسال إلى: {target}... (انتظار {wait_time}ث)")
+            
+            if send_application_email_fixed(target):
+                print(f"✅ نجح الإرسال إلى {target}")
                 with open(DB_FILE, 'a') as f: f.write(target + "\n")
                 count += 1
-                await asyncio.sleep(10) # فترات راحة لتجنب الحظر
-            if count >= 10: break # إرسال 10 إيميلات في المرة الواحدة
+                await asyncio.sleep(wait_time)
+            
+            if count >= 7: # التوقف بعد 7 إيميلات في المرة الواحدة للأمان
+                print("✋ تم الوصول للحد الآمن للإرسال اليومي.")
+                break
 
-    # جلب روابط التقديم اليدوي
-    direct_links = scrape_direct_links()
-    if direct_links:
-        print("\n🔥 وظائف جديدة (قدم عليها يدوياً بالروابط):")
-        for link in direct_links: print(f"👉 {link}")
+def send_application_email_fixed(target):
+    # وظيفة مساعدة لاستدعاء نظام الإرسال الآمن
+    return send_secure_email(target)
 
 if __name__ == "__main__":
-    asyncio.run(run_bot())
+    asyncio.run(run_bot())ض
